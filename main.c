@@ -12,7 +12,8 @@
 #include <string.h>
 #include <stdio.h>
 
-// Initializes USARTx
+
+/****************** INITIALIZES USARTx ****************/
 // USART2: UART Communication with Termite
 // USART1: Bluetooth Communication with Phone
 void Init_USARTx(int x) {
@@ -28,7 +29,10 @@ void Init_USARTx(int x) {
 		// Do nothing...
 	}
 }
+/****************** END USART INIT *******************/
 
+
+/************* RGB SETTERS **************/
 void setGreenVal(double value) {
 	TIM1->CCR1 = (value/3) * TIM1->ARR;
 }
@@ -40,6 +44,10 @@ void setBlueVal(double value) {
 void setRedVal(double value) {
 	TIM2->CCR1 = (value/3) * TIM2->ARR;
 }
+/********** END RGB SETTERS ************/
+
+
+
 
 int main(void) {
 	System_Clock_Init(); // System Clock = 80 MHz
@@ -51,13 +59,16 @@ int main(void) {
 	PWM_Init2();
 	PWM_Init3();
 	EXTI_Init();
-	
-	// Initialize I2C
 	I2C_GPIO_Init();
 	I2C_Initialization();
 	
-	int i;
-	char message[6];
+	/***** DEBUG STRINGS *****/
+	//char finalTemp[6];
+	//char finalBrightness[6];
+	/*** END DEBUG STRINGS ***/
+	
+	
+	/************* I2C REGISTERS **************/
 	uint8_t SlaveAddress;
 	uint8_t tempSensorAddress = 0x48;
 	uint8_t lightSensorAddress = 0x29;
@@ -78,97 +89,99 @@ int main(void) {
 	uint8_t Data_SendC1L = 0x16;
 	uint8_t Data_SendC1H = 0x17;
 	uint8_t Data_SendID = 0x12;
+	/*********** END I2C REGISTERS ************/
 	
+	// INITIALIZE USART2
 	Init_USARTx(2);
-	
 	char rxByte;
-
+	
+	//DISPLAY MODE
+	char mode[6];
+	
+	//TIMER
+	int i;
+	
+	/**********  CLEAR RGB *************/
 	double clear[3] = {0, 0, 0};
 
 	setRedVal(clear[0]);
 	setGreenVal(clear[1]);
 	setBlueVal(clear[2]);
+	/*********** END CLEAR ***********/
+	
 		
-	
-	
-	
-	
 	while(1) {
 		
-		// Determine Slave Address
-		//
-		// Note the "<< 1" must be present because bit 0 is treated as a don't care in 7-bit addressing mode
+		//DISPLAY MODE = AUTOMATIC
+		sprintf(mode, "%s", "Auto");
+		LCD_DisplayString(mode);
+		
+		
+		/********************** TEMP SENSOR SEND AND RECEIVE DATA *************************/
 		SlaveAddress = tempSensorAddress << 1UL; // STUB - Fill in correct address 
-		
-		// [TODO] - Get Temperature
-		// 
-		// First, send a command to the sensor for reading the temperature
-		// Next, get the measurement
-		
-		// [TODO] - Print Temperature to LCD
-		
-		// First, send a command to the sensor for reading the temperature
+
 		I2C_SendData(I2C1, SlaveAddress, &Data_SendTemp, 1); // send one 0 byte
-		
-		// Next, get the measurement
 		I2C_ReceiveData(I2C1, SlaveAddress, &Data_ReceiveTemp, 1); // read 1 byte
 		
 		uint8_t tempMeasurement = Data_ReceiveTemp;
 		
 
+		//CONVERT TO 2S COMPLEMENT
 		if(tempMeasurement & 0x80) {
-			// 2S COMPLIMENT CONVERT
 			tempMeasurement = ~tempMeasurement;
 			tempMeasurement += 0x01;
 			tempMeasurement *= -1;
 		}
 		
-		sprintf(message, "%6d", tempMeasurement);
-
-		// Print Temperature to LCD
-		LCD_DisplayString(message);
-
+		/******************** END TEMP SENSOR SEND AND RECEIVE DATA ***********************/
+		
+		
+		//FINAL TEMP READING FOR DEBUG
+		//sprintf(finalTemp, "%6d", tempMeasurement);
 		//printf("Temperature: %6d \n",tempMeasurement);
 		
 
+		/********************** LIGHT SENSOR SEND AND RECEIVE DATA *************************/
 		SlaveAddress = lightSensorAddress << 1UL;
 		uint8_t ds = CommandBit|EnableRegister;
 		uint8_t data = EnableAIEN | EnablePON | EnableAEN | EnableNPIEN;
 		
+		//SEND ARRAY OF DATA TO I2C REGISTER
 		uint8_t da[2];
 		da[0] = ds;
 		da[1] = data;
-		//da = da | data;
-		// First, send a command to the sensor for reading the temperature
 		
-		I2C_SendData(I2C1, SlaveAddress, da, 2); // send one 0 byte
-		I2C_ReceiveData(I2C1, SlaveAddress, &Data_ReceiveC, 1); // read 1 byte
+		//INITIALIZE SENSOR TO TAKE AMBIENT LIGHT
+		I2C_SendData(I2C1, SlaveAddress, da, 2);
+		I2C_ReceiveData(I2C1, SlaveAddress, &Data_ReceiveC, 1);
 
-		uint8_t command = Data_ReceiveC;
+		//DEBUG INFO
+		//uint8_t command = Data_ReceiveC;
 		
 		
-		
+		//CHANNEL INITIALIZATION REGISTERS
 		uint8_t c0l = CommandBit|Data_SendC0L;
 		uint8_t c0h = CommandBit|Data_SendC0H;
 		uint8_t c1l = CommandBit|Data_SendC1L;
 		uint8_t c1h = CommandBit|Data_SendC1H;
 		uint8_t address = CommandBit|Data_SendID;
-		// Next, get the measurement
+		
+		//REQUEST CHANNEL LOW THRESHOLD DATA
 		I2C_SendData(I2C1, SlaveAddress, &c0l, 1); // send one 0 byte
 		I2C_ReceiveData(I2C1, SlaveAddress, &Data_Receive0, 1); // read 1 byte
 
-		
 		uint8_t chan0 = Data_Receive0;
 		
-		// Next, get the measurement
+		//REQUEST CHANNEL LOW THRESHOLD DATA
 		I2C_SendData(I2C1, SlaveAddress, &c1l, 1); // send one 0 byte
 		I2C_ReceiveData(I2C1, SlaveAddress, &Data_Receive1, 1); // read 1 byte
 		
 		uint8_t chan1 = Data_Receive1;
+		/******************* END LIGHT SENSOR SEND AND RECEIVE DATA **********************/
 		
-		
+		/*********************************** FLUX CALCULATIONS ************************************/
 		float atime, again;
-		float cpl, lux1, lux2, lux;
+		float cpl, lux;
 		atime = 100.0F;
 		again = 1.0F;
 
@@ -178,7 +191,7 @@ int main(void) {
 		
 		double brightness = lux/600.0;
 		
-		printf("Light: %6f \n",brightness);
+		//printf("Light: %6f \n",brightness);
 		
 		double mult;
 		
@@ -189,26 +202,33 @@ int main(void) {
 		} else {
 			mult = 1;
 		}
-	
+		/******************************** END FLUX CALCULATIONS ***********************************/
 	
 		
+		/********************************** ADJUST LIGHT TEMP ************************************/
+		//TEMP ARRAYS
 		double warmest[3] = {0.5, 0.075, 0.075};
 		double white[3] = {0.4, 0.15, 0.15};
 		double coolest[3] = {0.2, 0.88627451, 1};
 		double diffWarmtoWhite[3] = {0.1, 0.075, 0.075};
 		double diffWhitetoCool[3] = {0.2, 0.73627451, 0.85};
 		
+		//TEMP THRESHOLDS
 		double maxTemp = 30;
 		double midTemp = 20;
 		double minTemp = 10;
 		
+		//PWM VALUES
 		double linearRed;
 		double linearGreen;
 		double linearBlue;
 		
+		//DIFFERENCE CALCULATIONS
 		double linearWarmtoWhite = maxTemp - midTemp;
 		double linearWhitetoCool = midTemp - minTemp;
 		
+		
+		//SETTING TEMP
 		if((tempMeasurement - midTemp) > 0) {
 			double fracWarmtoWhite = (tempMeasurement - midTemp) / linearWarmtoWhite;
 		
@@ -223,12 +243,13 @@ int main(void) {
 			linearBlue = coolest[2]- (fracWhitetoCool * diffWhitetoCool[2]);
 		}
 		
-		
+		//ADJUSTING BRIGHTNESS WITH LUX CALCULATIONS
 		linearRed *= mult;
 		linearBlue *= mult;
 		linearGreen *= mult;
 		
 		
+		//FINAL SETTING OF VALUES
 		if (tempMeasurement < minTemp) {
 			setRedVal(coolest[0]);
 			setGreenVal(coolest[1]);
@@ -242,7 +263,7 @@ int main(void) {
 			setGreenVal(linearGreen);
 			setBlueVal(linearBlue);
 		}
-		
+		/******************************** END ADJUST LIGHT TEMP **********************************/
 		
 		// Some delay
 		for(i = 0; i < 50000; ++i); 

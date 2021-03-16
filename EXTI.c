@@ -1,5 +1,5 @@
 #include "EXTI.h"
-
+#include "LCD.h"
 #include "LED.h"
 #include "UART.h"
 #include "PWM.h"
@@ -28,17 +28,25 @@ void EXTI_Init(void) {
 }
 
 
+/***** INTERRUPT VARIABLES ***************/
+char mode[6];
 double warmest[3] = {0.5, 0.075, 0.075};
 double middle[3] = {0,0,1};
 double coolest[3] = {0.2, 0.88627451, 1};
 double clear[3] = {0, 0, 0};
 double hold[3] = {0,0,0};
 char rxByte;
+/***** END VARIABLES *********************/
+
 
 // Interrupt handlers
 
 void EXTI1_IRQHandler(void) {
 	EXTI->PR1 |= EXTI_PR1_PIF3;
+	LCD_Initialization();
+	LCD_Clear();
+	sprintf(mode, "%s", "MANUAL");
+	LCD_DisplayString(mode);
 	int i = 1;
 	while (i) {
 		char chr;
@@ -64,7 +72,6 @@ void EXTI1_IRQHandler(void) {
 			scanf("%lf",&rgbBlue);
 			hold[2] = rgbBlue/255.0;
 			writeValue(hold);
-			
 			printf("Enter Alpha(Brightness) Value: ");
 			scanf("%lf",&rgbAlpha);
 			double mult = rgbAlpha/255.0;
